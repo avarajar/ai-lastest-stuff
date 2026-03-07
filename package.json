@@ -1,0 +1,39 @@
+{
+  "name": "ai-lastest-stuff",
+  "version": "0.1.0",
+  "description": "AI news aggregator - collects AI news, repos, and projects daily and posts to Slack, Discord, etc.",
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "digest": "tsx src/index.ts --digest",
+    "collect": "tsx src/index.ts --collect",
+    "post": "tsx src/index.ts --post",
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "ai",
+    "news",
+    "aggregator",
+    "anthropic",
+    "slack",
+    "discord"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.78.0",
+    "better-sqlite3": "^12.6.2",
+    "dotenv": "^17.3.1",
+    "node-html-parser": "^7.1.0",
+    "tsx": "^4.21.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^25.3.5",
+    "typescript": "^5.9.3"
+  }
+}
