@@ -1,10 +1,21 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { NewsItem, Digest, DigestSection } from "./types.js";
 
+function latestReleasePerRepo(items: NewsItem[]): NewsItem[] {
+  const seen = new Map<string, NewsItem>();
+  for (const item of items) {
+    const repo = (item.metadata?.repo as string) || item.title.split(" ")[0];
+    if (!seen.has(repo)) {
+      seen.set(repo, item);
+    }
+  }
+  return Array.from(seen.values());
+}
+
 function groupItems(items: NewsItem[]): DigestSection[] {
   const sections: DigestSection[] = [];
 
-  // Top Stories: highest scored items from HN/Reddit (top 5 by score)
+  // Top Stories: highest scored from HN/Reddit (top 5)
   const hnRedditItems = items
     .filter((item) => item.source === "hackernews" || item.source === "reddit")
     .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
@@ -14,66 +25,70 @@ function groupItems(items: NewsItem[]): DigestSection[] {
     sections.push({ title: "Top Stories", items: hnRedditItems });
   }
 
-  // AI Company Releases: GitHub releases from major AI orgs
-  const releaseItems = items.filter((item) => item.source === "github-releases");
+  // Releases: only latest per repo, max 5
+  const releaseItems = latestReleasePerRepo(
+    items.filter((item) => item.source === "github-releases")
+  ).slice(0, 5);
+
   if (releaseItems.length > 0) {
-    sections.push({ title: "AI Company Releases", items: releaseItems });
+    sections.push({ title: "Releases", items: releaseItems });
   }
 
-  // New Repos & Tools: GitHub trending items
-  const githubItems = items.filter((item) => item.source === "github");
+  // Trending Repos: top 5 by stars
+  const githubItems = items
+    .filter((item) => item.source === "github")
+    .slice(0, 5);
+
   if (githubItems.length > 0) {
-    sections.push({ title: "New Repos & Tools", items: githubItems });
+    sections.push({ title: "Trending Repos", items: githubItems });
   }
 
-  // Research Papers: ArXiv items
-  const arxivItems = items.filter((item) => item.source === "arxiv");
+  // Papers: top 5
+  const arxivItems = items
+    .filter((item) => item.source === "arxiv")
+    .slice(0, 5);
+
   if (arxivItems.length > 0) {
-    sections.push({ title: "Research Papers", items: arxivItems });
+    sections.push({ title: "Research", items: arxivItems });
   }
 
-  // Community Highlights: remaining items from Reddit, RSS
-  // Exclude HN/Reddit items already used in Top Stories
+  // News: RSS items, top 5
   const topStoryIds = new Set(hnRedditItems.map((item) => item.id));
-  const communityItems = items.filter(
-    (item) =>
-      (item.source === "reddit" || item.source === "rss") &&
-      !topStoryIds.has(item.id)
-  );
-  if (communityItems.length > 0) {
-    sections.push({ title: "Community Highlights", items: communityItems });
+  const newsItems = items
+    .filter((item) => item.source === "rss")
+    .slice(0, 5);
+
+  if (newsItems.length > 0) {
+    sections.push({ title: "News", items: newsItems });
   }
 
   return sections;
 }
 
 function buildPrompt(sections: DigestSection[]): string {
-  let prompt = `You are an AI news curator. Below are today's collected AI-related news items, grouped into sections. For each section and for the overall digest, write a brief summary.
+  let prompt = `You are writing a short daily AI newsletter brief. Below are today's items grouped by category.
 
-Instructions:
-- Write a brief overall summary (2-3 sentences) capturing the most important themes of the day in AI news.
-- Write a brief summary for each section (1-2 sentences) highlighting the key items.
-- Return your response as JSON with this exact structure:
-{
-  "overallSummary": "...",
-  "sectionSummaries": {
-    "Section Title": "..."
-  }
-}
+Write a single concise newsletter in plain text. Rules:
+- Start with a 1-2 sentence headline summary of the most important thing today
+- Then write one short paragraph per section (2-3 sentences max each)
+- Mention specific names, versions, and numbers when relevant
+- Keep the TOTAL response under 300 words
+- Do NOT use markdown, bullet points, or lists — write in prose paragraphs
+- Do NOT include links or URLs
+- Separate sections with a blank line and the section name in caps on its own line
+- Write in a casual but informative tone, like a smart colleague giving you a quick rundown
 
-Here are the items:
+Here are today's items:
 
 `;
 
   for (const section of sections) {
-    prompt += `## ${section.title}\n\n`;
+    prompt += `## ${section.title}\n`;
     for (const item of section.items) {
-      prompt += `- **${item.title}**`;
+      prompt += `- ${item.title}`;
       if (item.description) {
-        prompt += `: ${item.description}`;
-      }
-      if (item.score !== undefined) {
-        prompt += ` (score: ${item.score})`;
+        const desc = item.description.slice(0, 200);
+        prompt += `: ${desc}`;
       }
       prompt += `\n`;
     }
@@ -81,11 +96,6 @@ Here are the items:
   }
 
   return prompt;
-}
-
-interface SummaryResponse {
-  overallSummary: string;
-  sectionSummaries: Record<string, string>;
 }
 
 export async function generateDigest(
@@ -111,7 +121,6 @@ export async function generateDigest(
     sections,
   };
 
-  // Skip summarization if no API key is provided
   if (!apiKey) {
     return digest;
   }
@@ -131,33 +140,12 @@ export async function generateDigest(
       ],
     });
 
-    // Extract text content from the response
     const textBlock = message.content.find((block) => block.type === "text");
-    if (!textBlock || textBlock.type !== "text") {
-      return digest;
-    }
-
-    const responseText = textBlock.text;
-
-    // Parse the JSON response - handle possible markdown code fences
-    let jsonStr = responseText;
-    const jsonMatch = responseText.match(/```(?:json)?\s*([\s\S]*?)```/);
-    if (jsonMatch) {
-      jsonStr = jsonMatch[1].trim();
-    }
-
-    const summaries: SummaryResponse = JSON.parse(jsonStr);
-
-    digest.summary = summaries.overallSummary;
-
-    for (const section of digest.sections) {
-      if (summaries.sectionSummaries[section.title]) {
-        section.summary = summaries.sectionSummaries[section.title];
-      }
+    if (textBlock && textBlock.type === "text") {
+      digest.summary = textBlock.text;
     }
   } catch (error) {
-    console.error("Failed to generate AI summaries:", error);
-    // Return digest without summaries on error
+    console.error("Failed to generate AI summary:", error);
   }
 
   return digest;

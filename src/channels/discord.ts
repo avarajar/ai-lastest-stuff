@@ -3,40 +3,42 @@ import type { Channel, Digest } from "../types.js";
 function buildMessages(digest: Digest): string[] {
   const messages: string[] = [];
 
-  // Header + summary (plain text, no markdown)
-  let header = `========================================\n`;
-  header += `  AI News Digest - ${digest.date}\n`;
-  header += `========================================\n`;
+  let msg = `========================================\n`;
+  msg += `  AI Daily Brief - ${digest.date}\n`;
+  msg += `========================================\n`;
+
   if (digest.summary) {
-    header += `\n${digest.summary}\n`;
-  }
-  messages.push(header);
-
-  // One message per section
-  for (const section of digest.sections) {
-    let msg = `\n--- ${section.title} ---\n`;
-    if (section.summary) {
-      msg += `${section.summary}\n`;
-    }
-    msg += "\n";
-
-    for (let i = 0; i < section.items.length; i++) {
-      const item = section.items[i];
-      const score = item.score != null ? ` [${item.score}]` : "";
-      const line = `${i + 1}. ${item.title}${score}\n   ${item.url}\n`;
-
-      // Split if approaching Discord's 2000 char limit
-      if (msg.length + line.length > 1900) {
-        messages.push(msg);
-        msg = `--- ${section.title} (cont.) ---\n\n`;
+    msg += `\n${digest.summary}\n`;
+  } else {
+    // Fallback: simple list if no AI summary
+    for (const section of digest.sections) {
+      msg += `\n--- ${section.title} ---\n`;
+      for (const item of section.items) {
+        msg += `${item.title}\n${item.url}\n`;
       }
-      msg += line;
-    }
-
-    if (msg.trim()) {
-      messages.push(msg);
     }
   }
+
+  // Split into multiple messages if needed (Discord 2000 char limit)
+  while (msg.length > 0) {
+    if (msg.length <= 2000) {
+      messages.push(msg);
+      break;
+    }
+    // Find a good split point (newline before 2000)
+    let splitAt = msg.lastIndexOf("\n", 1900);
+    if (splitAt <= 0) splitAt = 1900;
+    messages.push(msg.slice(0, splitAt));
+    msg = msg.slice(splitAt);
+  }
+
+  // Always add a links message so people can dig deeper
+  let links = `\nTop links:\n`;
+  const topItems = digest.sections.flatMap((s) => s.items).slice(0, 8);
+  for (const item of topItems) {
+    links += `${item.url}\n`;
+  }
+  messages.push(links);
 
   return messages;
 }
