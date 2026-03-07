@@ -3,29 +3,32 @@ import type { Channel, Digest } from "../types.js";
 function buildMessages(digest: Digest): string[] {
   const messages: string[] = [];
 
-  // Header + summary
-  let header = `**AI News Digest - ${digest.date}**\n`;
+  // Header + summary (plain text, no markdown)
+  let header = `========================================\n`;
+  header += `  AI News Digest - ${digest.date}\n`;
+  header += `========================================\n`;
   if (digest.summary) {
     header += `\n${digest.summary}\n`;
   }
   messages.push(header);
 
-  // One message per section (Discord has 2000 char limit per message)
+  // One message per section
   for (const section of digest.sections) {
-    let msg = `**--- ${section.title} ---**\n`;
+    let msg = `\n--- ${section.title} ---\n`;
     if (section.summary) {
-      msg += `_${section.summary}_\n`;
+      msg += `${section.summary}\n`;
     }
     msg += "\n";
 
-    for (const item of section.items) {
-      const score = item.score != null ? ` (${item.score})` : "";
-      const line = `- ${item.title}${score}\n  ${item.url}\n`;
+    for (let i = 0; i < section.items.length; i++) {
+      const item = section.items[i];
+      const score = item.score != null ? ` [${item.score}]` : "";
+      const line = `${i + 1}. ${item.title}${score}\n   ${item.url}\n`;
 
       // Split if approaching Discord's 2000 char limit
       if (msg.length + line.length > 1900) {
         messages.push(msg);
-        msg = `**--- ${section.title} (cont.) ---**\n\n`;
+        msg = `--- ${section.title} (cont.) ---\n\n`;
       }
       msg += line;
     }
