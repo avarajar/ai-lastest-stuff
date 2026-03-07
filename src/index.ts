@@ -91,17 +91,14 @@ async function main(): Promise<void> {
     }
 
     // Step 5: Generate digest
-    if (!config.anthropicApiKey) {
-      console.error("ANTHROPIC_API_KEY is required for digest generation.");
-      process.exitCode = 1;
-      return;
-    }
-
-    // Use items from DB to include any previously collected items in the window
     const itemsForDigest = db.getItemsSince(since);
     console.log(`\nGenerating digest from ${itemsForDigest.length} items...`);
 
-    const digest = await generateDigest(itemsForDigest, config.anthropicApiKey);
+    if (!config.anthropicApiKey) {
+      console.log(`${YELLOW}No ANTHROPIC_API_KEY set — digest will be generated without AI summaries.${RESET}`);
+    }
+
+    const digest = await generateDigest(itemsForDigest, config.anthropicApiKey || "");
 
     // Save digest to database
     db.saveDigest(digest.date, JSON.stringify(digest));
