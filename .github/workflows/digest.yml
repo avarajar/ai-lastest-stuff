@@ -1,0 +1,28 @@
+name: AI Daily Brief
+
+on:
+  schedule:
+    # Lunes, Miércoles, Viernes a las 8am Colombia (UTC-5 = 13:00 UTC)
+    - cron: "3 13 * * 1,3,5"
+  workflow_dispatch: # Allow manual trigger from GitHub UI
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - run: npm ci
+
+      - name: Run AI digest pipeline
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: npm start
