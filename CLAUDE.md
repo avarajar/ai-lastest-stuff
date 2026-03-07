@@ -20,11 +20,12 @@ src/
   digest.ts         # Claude-powered digest generator
   sources/          # News source collectors
     index.ts        # Collector factory
-    github.ts       # GitHub trending repos
-    hackernews.ts   # HackerNews stories
-    reddit.ts       # Reddit AI subreddits
-    rss.ts          # RSS/Atom feed parser
-    arxiv.ts        # ArXiv papers
+    github.ts          # GitHub trending repos
+    github-releases.ts # Releases from AI company repos (Anthropic, OpenAI, Meta, etc.)
+    hackernews.ts      # HackerNews stories
+    reddit.ts          # Reddit AI subreddits (8 subs)
+    rss.ts             # RSS/Atom feeds (OpenAI, Google, HuggingFace, TechCrunch, etc.)
+    arxiv.ts           # ArXiv papers
   channels/         # Output channels
     index.ts        # Channel factory
     console.ts      # Terminal output

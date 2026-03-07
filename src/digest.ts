@@ -14,7 +14,13 @@ function groupItems(items: NewsItem[]): DigestSection[] {
     sections.push({ title: "Top Stories", items: hnRedditItems });
   }
 
-  // New Repos & Tools: GitHub items
+  // AI Company Releases: GitHub releases from major AI orgs
+  const releaseItems = items.filter((item) => item.source === "github-releases");
+  if (releaseItems.length > 0) {
+    sections.push({ title: "AI Company Releases", items: releaseItems });
+  }
+
+  // New Repos & Tools: GitHub trending items
   const githubItems = items.filter((item) => item.source === "github");
   if (githubItems.length > 0) {
     sections.push({ title: "New Repos & Tools", items: githubItems });

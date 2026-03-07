@@ -14,6 +14,7 @@ export interface NewsItem {
 
 export type SourceType =
   | "github"
+  | "github-releases"
   | "hackernews"
   | "reddit"
   | "rss"

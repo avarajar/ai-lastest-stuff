@@ -20,7 +20,16 @@ interface RedditListingResponse {
   };
 }
 
-const SUBREDDITS = ["artificial", "MachineLearning", "LocalLLaMA", "ClaudeAI"];
+const SUBREDDITS = [
+  "artificial",
+  "MachineLearning",
+  "LocalLLaMA",
+  "ClaudeAI",
+  "singularity",
+  "OpenAI",
+  "ChatGPT",
+  "StableDiffusion",
+];
 
 export const redditCollector: SourceCollector = {
   name: "reddit",

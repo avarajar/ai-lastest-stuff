@@ -1,7 +1,7 @@
 import type { Config, SourceType, ChannelType } from "./types.js";
 
 export function loadConfig(): Config {
-  const sources: SourceType[] = ["github", "hackernews", "reddit", "rss", "arxiv"];
+  const sources: SourceType[] = ["github", "github-releases", "hackernews", "reddit", "rss", "arxiv"];
 
   const channels: ChannelType[] = ["console"];
   if (process.env.SLACK_WEBHOOK_URL) channels.push("slack");

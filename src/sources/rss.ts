@@ -1,10 +1,16 @@
 import type { NewsItem, SourceCollector } from "../types.js";
 
 const FEED_URLS = [
-  "https://blog.anthropic.com/rss.xml",
+  // AI companies - direct sources
   "https://openai.com/blog/rss.xml",
   "https://blog.google/technology/ai/rss/",
+  "https://deepmind.google/blog/rss.xml",
+  "https://huggingface.co/blog/feed.xml",
+  "https://www.latent.space/feed",
+  // Tech media
   "https://techcrunch.com/category/artificial-intelligence/feed/",
+  "https://www.technologyreview.com/topic/artificial-intelligence/feed",
+  "https://the-decoder.com/feed/",
 ];
 
 function simpleHash(str: string): string {
