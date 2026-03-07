@@ -116,9 +116,11 @@ All 6 source collectors run **in parallel** using `Promise.allSettled`. Each col
 Items are deduplicated by ID and upserted into a local **SQLite** database. This means running the tool multiple times a day won't create duplicates.
 
 ### 3. Digest
-**Claude** receives all collected items and generates:
+Items are grouped into sections. If an `ANTHROPIC_API_KEY` is configured, **Claude** generates:
 - An **overall summary** of the day's AI landscape (2-3 sentences)
 - A **section summary** for each category (1-2 sentences)
+
+Without an API key, the digest is still generated with all items organized by section — just without AI summaries.
 
 Items are grouped into 5 sections:
 | Section | Content |
@@ -159,7 +161,7 @@ cp .env.example .env
 
 | Variable | Required | Description |
 |:---|:---:|:---|
-| `ANTHROPIC_API_KEY` | Yes | API key from [console.anthropic.com](https://console.anthropic.com) |
+| `ANTHROPIC_API_KEY` | No | Enables AI summaries. Without it, digest still works but without summaries. Get one at [console.anthropic.com](https://console.anthropic.com) |
 | `GITHUB_TOKEN` | No | Increases GitHub API rate limits (recommended) |
 | `SLACK_WEBHOOK_URL` | No | Enables Slack delivery via [incoming webhook](https://api.slack.com/messaging/webhooks) |
 | `DISCORD_WEBHOOK_URL` | No | Enables Discord delivery via [webhook](https://support.discord.com/hc/en-us/articles/228383668) |
