@@ -20,7 +20,7 @@ function buildEmbeds(digest: Digest): DiscordEmbed[] {
     });
   }
 
-  // One embed per section
+  // One embed per section, split if too long (Discord 4096 char limit per embed description)
   for (let i = 0; i < digest.sections.length; i++) {
     const section = digest.sections[i];
     const color = EMBED_COLORS[i % EMBED_COLORS.length];
@@ -30,15 +30,31 @@ function buildEmbeds(digest: Digest): DiscordEmbed[] {
       return `[${item.title}](${item.url})${score}`;
     });
 
-    const description = section.summary
-      ? `${section.summary}\n\n${itemLines.join("\n")}`
-      : itemLines.join("\n");
+    // Build description respecting Discord's 4096 char limit
+    const header = section.summary ? `${section.summary}\n\n` : "";
+    let description = header;
+    let partIndex = 0;
 
-    embeds.push({
-      title: section.title,
-      description,
-      color,
-    });
+    for (const line of itemLines) {
+      if (description.length + line.length + 1 > 3900) {
+        embeds.push({
+          title: partIndex === 0 ? section.title : `${section.title} (cont.)`,
+          description,
+          color,
+        });
+        description = "";
+        partIndex++;
+      }
+      description += (description ? "\n" : "") + line;
+    }
+
+    if (description) {
+      embeds.push({
+        title: partIndex === 0 ? section.title : `${section.title} (cont.)`,
+        description,
+        color,
+      });
+    }
   }
 
   return embeds;
@@ -51,20 +67,25 @@ export function createDiscordChannel(webhookUrl: string): Channel {
     async post(digest: Digest): Promise<void> {
       const embeds = buildEmbeds(digest);
 
-      // Discord allows max 10 embeds per message; send in batches if needed
-      const batchSize = 10;
-      for (let i = 0; i < embeds.length; i += batchSize) {
-        const batch = embeds.slice(i, i + batchSize);
-        const payload = {
-          content: i === 0 ? `**AI News Digest - ${digest.date}**` : undefined,
-          embeds: batch,
-        };
+      // Send header message first
+      try {
+        await fetch(webhookUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ content: `**AI News Digest - ${digest.date}**` }),
+          signal: AbortSignal.timeout(15000),
+        });
+      } catch (error) {
+        console.error("Failed to post Discord header:", error);
+      }
 
+      // Send each embed as its own message (Discord's 6000 char total limit per message)
+      for (const embed of embeds) {
         try {
           const response = await fetch(webhookUrl, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
+            body: JSON.stringify({ embeds: [embed] }),
             signal: AbortSignal.timeout(15000),
           });
 
