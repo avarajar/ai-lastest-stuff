@@ -2,19 +2,19 @@ import type { Channel, Digest } from "../types.js";
 
 function decodeEntities(str: string): string {
   return str
-    .replace(/&#039;/g, "'")
+    .replace(/&#0?39;/g, "'")
     .replace(/&#x27;/g, "'")
     .replace(/&#x2F;/g, "/")
     .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
-    .replace(/&#8217;/g, "'")
-    .replace(/&#8216;/g, "'")
-    .replace(/&#8220;/g, '"')
-    .replace(/&#8221;/g, '"')
-    .replace(/&#8211;/g, "–")
-    .replace(/&#8212;/g, "—");
+    .replace(/&#8217;/g, "\u2019")
+    .replace(/&#8216;/g, "\u2018")
+    .replace(/&#8220;/g, "\u201C")
+    .replace(/&#8221;/g, "\u201D")
+    .replace(/&#8211;/g, "\u2013")
+    .replace(/&#8212;/g, "\u2014");
 }
 
 function splitText(text: string, limit: number): string[] {
@@ -34,34 +34,29 @@ function splitText(text: string, limit: number): string[] {
 }
 
 function buildMessages(digest: Digest): string[] {
-  const messages: string[] = [];
+  // Build one big text, then split for Discord limits
+  let full = `**AI Daily Brief \u2014 ${digest.date}**\n`;
 
-  // Message 1: Header + AI summary
-  let summary = `**========================================**\n`;
-  summary += `**  AI Daily Brief — ${digest.date}  **\n`;
-  summary += `**========================================**\n`;
-
+  // Lead summary
   if (digest.summary) {
-    summary += `\n${digest.summary}`;
+    full += `\n${digest.summary}\n`;
   }
 
-  messages.push(...splitText(summary, 2000));
-
-  // Message 2+: Links organized by company/section
-  let links = "";
+  // Each section: summary paragraph + links underneath
   for (const section of digest.sections) {
-    links += `\n**— ${section.title} —**\n`;
+    full += `\n**\u2014 ${section.title} \u2014**\n`;
+
+    if (section.summary) {
+      full += `${section.summary}\n`;
+    }
+
     for (const item of section.items) {
       const title = decodeEntities(item.title);
-      links += `> ${title}\n> ${item.url}\n`;
+      full += `> ${title}\n> <${item.url}>\n`;
     }
   }
 
-  if (links) {
-    messages.push(...splitText(links, 2000));
-  }
-
-  return messages;
+  return splitText(full, 2000);
 }
 
 export function createDiscordChannel(webhookUrl: string): Channel {

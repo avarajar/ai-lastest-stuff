@@ -10,16 +10,18 @@ export const consoleChannel: Channel = {
 
   async post(digest: Digest): Promise<void> {
     console.log("");
-    console.log(`${BOLD}${CYAN}  AI Daily Brief - ${digest.date}${RESET}`);
+    console.log(`${BOLD}${CYAN}  AI Daily Brief — ${digest.date}${RESET}`);
     console.log(`${CYAN}  ${"=".repeat(40)}${RESET}`);
 
     if (digest.summary) {
       console.log(`\n${digest.summary}`);
     }
 
-    // Always show links organized by section
     for (const section of digest.sections) {
-      console.log(`\n${BOLD}--- ${section.title} ---${RESET}`);
+      console.log(`\n${BOLD}— ${section.title} —${RESET}`);
+      if (section.summary) {
+        console.log(section.summary);
+      }
       for (const item of section.items) {
         console.log(`  ${item.title}`);
         console.log(`  ${DIM}${item.url}${RESET}`);

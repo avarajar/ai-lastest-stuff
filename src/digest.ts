@@ -1,32 +1,17 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { NewsItem, Digest, DigestSection } from "./types.js";
 
-// Company priority order — Anthropic first, then major AI labs, then ecosystem
-const COMPANY_PRIORITY: Record<string, number> = {
-  anthropic: 1,
-  openai: 2,
-  google: 3,
-  "google-deepmind": 3,
-  "meta-ai": 4,
-  mistral: 5,
-  nvidia: 6,
-  microsoft: 7,
-};
+// Only the 4 major AI companies — in this exact order
+const MAIN_COMPANIES = ["anthropic", "openai", "google", "microsoft"] as const;
 
 const COMPANY_DISPLAY_NAMES: Record<string, string> = {
   anthropic: "Anthropic",
   openai: "OpenAI",
   google: "Google",
-  "google-deepmind": "Google DeepMind",
-  "meta-ai": "Meta AI",
-  mistral: "Mistral",
-  nvidia: "NVIDIA",
   microsoft: "Microsoft",
 };
 
-// Map github-releases repos and RSS feed URLs to company keys
 function detectCompany(item: NewsItem): string | null {
-  const id = item.id.toLowerCase();
   const title = item.title.toLowerCase();
   const url = item.url.toLowerCase();
   const feedUrl = ((item.metadata?.feedUrl as string) || "").toLowerCase();
@@ -34,28 +19,24 @@ function detectCompany(item: NewsItem): string | null {
   const company = ((item.metadata?.company as string) || "").toLowerCase();
 
   // Direct company blog
-  if (company) return company;
+  if (company === "anthropic") return "anthropic";
 
   // GitHub releases by org
   if (repo.startsWith("anthropics/")) return "anthropic";
   if (repo.startsWith("openai/")) return "openai";
-  if (repo.startsWith("meta-llama/") || repo.startsWith("facebookresearch/")) return "meta-ai";
-  if (repo.startsWith("google-deepmind/") || repo.startsWith("google/generative")) return "google-deepmind";
-  if (repo.startsWith("mistralai/")) return "mistral";
+  if (repo.startsWith("google-deepmind/") || repo.startsWith("google/generative")) return "google";
+  if (repo.startsWith("microsoft/")) return "microsoft";
 
   // RSS by feed URL
   if (feedUrl.includes("openai.com")) return "openai";
   if (feedUrl.includes("blog.google") || feedUrl.includes("deepmind.google")) return "google";
-  if (feedUrl.includes("blogs.nvidia.com")) return "nvidia";
   if (feedUrl.includes("microsoft.com")) return "microsoft";
 
-  // Title/URL heuristics for HN/Reddit items about specific companies
+  // Title/URL heuristics
   if (title.includes("anthropic") || title.includes("claude") || url.includes("anthropic.com")) return "anthropic";
-  if (title.includes("openai") || title.includes("chatgpt") || url.includes("openai.com")) return "openai";
+  if (title.includes("openai") || title.includes("chatgpt") || title.includes("gpt-") || url.includes("openai.com")) return "openai";
   if ((title.includes("google") && (title.includes("gemini") || title.includes("ai"))) || title.includes("deepmind")) return "google";
-  if (title.includes("meta") && (title.includes("llama") || title.includes(" ai"))) return "meta-ai";
-  if (title.includes("mistral")) return "mistral";
-  if (title.includes("nvidia")) return "nvidia";
+  if (title.includes("microsoft") || title.includes("copilot")) return "microsoft";
 
   return null;
 }
@@ -71,119 +52,60 @@ function latestReleasePerRepo(items: NewsItem[]): NewsItem[] {
   return Array.from(seen.values());
 }
 
+// Source priority: official blogs first, then official RSS, then releases, then community
+const SOURCE_PRIORITY: Record<string, number> = {
+  "company-blogs": 1,
+  rss: 2,
+  "github-releases": 3,
+  hackernews: 4,
+  reddit: 5,
+};
+
 function groupItems(items: NewsItem[]): DigestSection[] {
   const sections: DigestSection[] = [];
-
-  // ========================================
-  // 1. COMPANY SECTIONS — grouped by company, sorted by priority
-  // ========================================
-
-  // Collect all company-attributable items
   const companyItems = new Map<string, NewsItem[]>();
   const communityPool: NewsItem[] = [];
 
-  // Company blogs + company RSS + company releases
-  const companySourceItems = items.filter(
-    (item) => item.source === "company-blogs" || item.source === "github-releases" || item.source === "rss"
-  );
+  // Attribute items from all sources to companies
+  for (const item of items) {
+    if (item.source === "github" || item.source === "arxiv") continue; // handled separately
 
-  for (const item of companySourceItems) {
     const company = detectCompany(item);
     if (company && COMPANY_DISPLAY_NAMES[company]) {
       if (!companyItems.has(company)) companyItems.set(company, []);
       companyItems.get(company)!.push(item);
-    }
-  }
-
-  // Also check HN/Reddit for company-specific stories (high score only)
-  const hnRedditItems = items
-    .filter((item) => item.source === "hackernews" || item.source === "reddit")
-    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
-
-  for (const item of hnRedditItems) {
-    const company = detectCompany(item);
-    if (company && COMPANY_DISPLAY_NAMES[company]) {
-      if (!companyItems.has(company)) companyItems.set(company, []);
-      companyItems.get(company)!.push(item);
-    } else {
+    } else if (item.source === "hackernews" || item.source === "reddit" || item.source === "rss") {
       communityPool.push(item);
     }
   }
 
-  // Sort companies by priority, emit sections
-  const sortedCompanies = Array.from(companyItems.entries()).sort(([a], [b]) => {
-    return (COMPANY_PRIORITY[a] ?? 99) - (COMPANY_PRIORITY[b] ?? 99);
-  });
+  // Emit company sections in fixed priority order
+  for (const companyKey of MAIN_COMPANIES) {
+    const compItems = companyItems.get(companyKey);
+    if (!compItems || compItems.length === 0) continue;
 
-  // Source priority: official blogs first, then official RSS, then releases, then community
-  const SOURCE_PRIORITY: Record<string, number> = {
-    "company-blogs": 1,
-    rss: 2,
-    "github-releases": 3,
-    hackernews: 4,
-    reddit: 5,
-  };
-
-  for (const [company, compItems] of sortedCompanies) {
-    // Deduplicate releases (only latest per repo)
     const releases = compItems.filter((i) => i.source === "github-releases");
     const nonReleases = compItems.filter((i) => i.source !== "github-releases");
     const dedupedReleases = latestReleasePerRepo(releases);
     const merged = [...nonReleases, ...dedupedReleases]
       .sort((a, b) => {
-        // Sort by source priority first (official sources first), then by date
         const priA = SOURCE_PRIORITY[a.source] ?? 10;
         const priB = SOURCE_PRIORITY[b.source] ?? 10;
         if (priA !== priB) return priA - priB;
         return b.publishedAt.getTime() - a.publishedAt.getTime();
       })
-      .slice(0, 8);
+      .slice(0, 6);
 
-    if (merged.length > 0) {
-      sections.push({
-        title: COMPANY_DISPLAY_NAMES[company],
-        items: merged,
-      });
-    }
+    sections.push({
+      title: COMPANY_DISPLAY_NAMES[companyKey],
+      items: merged,
+    });
   }
 
-  // ========================================
-  // 2. TRENDING REPOS
-  // ========================================
-  const githubItems = items
-    .filter((item) => item.source === "github")
-    .slice(0, 5);
-
-  if (githubItems.length > 0) {
-    sections.push({ title: "Trending Repos", items: githubItems });
-  }
-
-  // ========================================
-  // 3. RESEARCH
-  // ========================================
-  const arxivItems = items
-    .filter((item) => item.source === "arxiv")
-    .slice(0, 5);
-
-  if (arxivItems.length > 0) {
-    sections.push({ title: "Research", items: arxivItems });
-  }
-
-  // ========================================
-  // 4. COMMUNITY — remaining HN/Reddit + non-company RSS
-  // ========================================
-  const usedRssIds = new Set(
-    sortedCompanies.flatMap(([, items]) => items.map((i) => i.id))
-  );
-
-  const communityRss = items
-    .filter((item) => item.source === "rss" && !usedRssIds.has(item.id))
-    .slice(0, 5);
-
-  const communityFinal = [
-    ...communityPool.slice(0, 5),
-    ...communityRss,
-  ].slice(0, 8);
+  // Community — everything else (non-company HN/Reddit/RSS + trending + research)
+  const communityFinal = communityPool
+    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
+    .slice(0, 8);
 
   if (communityFinal.length > 0) {
     sections.push({ title: "Community", items: communityFinal });
@@ -193,19 +115,18 @@ function groupItems(items: NewsItem[]): DigestSection[] {
 }
 
 function buildPrompt(sections: DigestSection[]): string {
-  let prompt = `You are writing a daily AI industry newsletter. Below are today's items grouped by company and category.
+  let prompt = `You are writing a daily AI industry newsletter. Below are today's items grouped by company.
 
-Write a structured newsletter in plain text. Rules:
-- Start with a 1-2 sentence lead highlighting the BIGGEST news today
-- Then write one paragraph per section, using the EXACT section name as header
-- Company sections go first (Anthropic, OpenAI, Google, etc.) — for each, summarize their announcements and releases
+For EACH company section, write a short summary paragraph (2-4 sentences). Rules:
+- Write one paragraph per company using the EXACT company name as header in ALL CAPS
+- Summarize their most important announcements, products, and releases
 - Mention specific product names, versions, and numbers
-- Keep the TOTAL response under 400 words
-- Do NOT use markdown formatting — use plain text only
+- Keep each paragraph under 80 words
+- Do NOT use markdown — plain text only
 - Do NOT include links or URLs
-- Section headers should be the company/section name in ALL CAPS on its own line, preceded by a blank line
-- Write in a casual but informative tone, like a smart colleague giving you a quick rundown
-- If a company section has both blog posts AND releases, mention both
+- Casual but informative tone — like a smart colleague giving you the rundown
+- For the Community section, highlight the most interesting non-company stories
+- Start with a 1 sentence overall lead before the first company section
 
 Here are today's items:
 
@@ -216,8 +137,7 @@ Here are today's items:
     for (const item of section.items) {
       prompt += `- [${item.source}] ${item.title}`;
       if (item.description) {
-        const desc = item.description.slice(0, 200);
-        prompt += `: ${desc}`;
+        prompt += `: ${item.description.slice(0, 200)}`;
       }
       prompt += `\n`;
     }
@@ -225,6 +145,59 @@ Here are today's items:
   }
 
   return prompt;
+}
+
+// Parse the AI summary into per-section summaries
+function parseSummaryBySections(
+  summary: string,
+  sectionTitles: string[]
+): Map<string, string> {
+  const result = new Map<string, string>();
+
+  // Build regex to split by section headers (e.g. "ANTHROPIC", "OPENAI")
+  const headerPattern = sectionTitles
+    .map((t) => t.toUpperCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    .join("|");
+  const regex = new RegExp(`^(${headerPattern})\\s*$`, "gm");
+
+  // Find all section positions
+  const positions: Array<{ title: string; start: number; end: number }> = [];
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(summary)) !== null) {
+    const normalTitle = sectionTitles.find(
+      (t) => t.toUpperCase() === match![1].toUpperCase()
+    );
+    if (normalTitle) {
+      positions.push({
+        title: normalTitle,
+        start: match.index + match[0].length,
+        end: summary.length,
+      });
+    }
+  }
+
+  // Set end boundaries
+  for (let i = 0; i < positions.length - 1; i++) {
+    positions[i].end = positions[i + 1].start - positions[i + 1].title.length - 1;
+  }
+
+  // Extract text for the lead (before first section)
+  if (positions.length > 0) {
+    const lead = summary.slice(0, positions[0].start - positions[0].title.length - 1).trim();
+    if (lead) {
+      result.set("_lead", lead);
+    }
+  }
+
+  // Extract each section's text
+  for (const pos of positions) {
+    const text = summary.slice(pos.start, pos.end).trim();
+    if (text) {
+      result.set(pos.title, text);
+    }
+  }
+
+  return result;
 }
 
 export async function generateDigest(
@@ -272,6 +245,20 @@ export async function generateDigest(
     const textBlock = message.content.find((block) => block.type === "text");
     if (textBlock && textBlock.type === "text") {
       digest.summary = textBlock.text;
+
+      // Parse per-section summaries and attach them
+      const sectionTitles = sections.map((s) => s.title);
+      const parsed = parseSummaryBySections(textBlock.text, sectionTitles);
+
+      for (const section of sections) {
+        section.summary = parsed.get(section.title);
+      }
+
+      // Store lead as the overall summary
+      const lead = parsed.get("_lead");
+      if (lead) {
+        digest.summary = lead;
+      }
     }
   } catch (error) {
     console.error("Failed to generate AI summary:", error);
