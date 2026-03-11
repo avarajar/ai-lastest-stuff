@@ -102,7 +102,16 @@ function groupItems(items: NewsItem[]): DigestSection[] {
     });
   }
 
-  // Community — everything else (non-company HN/Reddit/RSS + trending + research)
+  // Trending Repos
+  const githubItems = items
+    .filter((item) => item.source === "github")
+    .slice(0, 5);
+
+  if (githubItems.length > 0) {
+    sections.push({ title: "Trending Repos", items: githubItems });
+  }
+
+  // Community — everything else (non-company HN/Reddit/RSS)
   const communityFinal = communityPool
     .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
     .slice(0, 8);
