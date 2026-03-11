@@ -111,14 +111,6 @@ function groupItems(items: NewsItem[]): DigestSection[] {
     sections.push({ title: "Trending Repos", items: githubItems });
   }
 
-  // Community — everything else (non-company HN/Reddit/RSS)
-  const communityFinal = communityPool
-    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
-    .slice(0, 8);
-
-  if (communityFinal.length > 0) {
-    sections.push({ title: "Community", items: communityFinal });
-  }
 
   return sections;
 }
