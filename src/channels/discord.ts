@@ -1,39 +1,67 @@
 import type { Channel, Digest } from "../types.js";
 
-function splitToDiscordMessages(text: string): string[] {
-  const messages: string[] = [];
+function decodeEntities(str: string): string {
+  return str
+    .replace(/&#039;/g, "'")
+    .replace(/&#x27;/g, "'")
+    .replace(/&#x2F;/g, "/")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#8217;/g, "'")
+    .replace(/&#8216;/g, "'")
+    .replace(/&#8220;/g, '"')
+    .replace(/&#8221;/g, '"')
+    .replace(/&#8211;/g, "–")
+    .replace(/&#8212;/g, "—");
+}
+
+function splitText(text: string, limit: number): string[] {
+  const parts: string[] = [];
   let remaining = text;
   while (remaining.length > 0) {
-    if (remaining.length <= 2000) {
-      messages.push(remaining);
+    if (remaining.length <= limit) {
+      parts.push(remaining);
       break;
     }
-    let splitAt = remaining.lastIndexOf("\n", 1900);
-    if (splitAt <= 0) splitAt = 1900;
-    messages.push(remaining.slice(0, splitAt));
+    let splitAt = remaining.lastIndexOf("\n", limit - 100);
+    if (splitAt <= 0) splitAt = limit - 100;
+    parts.push(remaining.slice(0, splitAt));
     remaining = remaining.slice(splitAt).replace(/^\n/, "");
   }
-  return messages;
+  return parts;
 }
 
 function buildMessages(digest: Digest): string[] {
-  let full = `========================================\n`;
-  full += `  AI Daily Brief - ${digest.date}\n`;
-  full += `========================================\n`;
+  const messages: string[] = [];
+
+  // Message 1: Header + AI summary
+  let summary = `**========================================**\n`;
+  summary += `**  AI Daily Brief — ${digest.date}  **\n`;
+  summary += `**========================================**\n`;
 
   if (digest.summary) {
-    full += `\n${digest.summary}\n`;
+    summary += `\n${digest.summary}`;
   }
 
-  // Add links organized by section (company-first)
+  messages.push(...splitText(summary, 2000));
+
+  // Message 2+: Links organized by company/section
+  let links = "";
   for (const section of digest.sections) {
-    full += `\n--- ${section.title} ---\n`;
+    links += `\n**— ${section.title} —**\n`;
     for (const item of section.items) {
-      full += `${item.title}\n${item.url}\n`;
+      const title = decodeEntities(item.title);
+      links += `> ${title}\n> ${item.url}\n`;
     }
   }
 
-  return splitToDiscordMessages(full);
+  if (links) {
+    messages.push(...splitText(links, 2000));
+  }
+
+  return messages;
 }
 
 export function createDiscordChannel(webhookUrl: string): Channel {

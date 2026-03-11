@@ -115,13 +115,28 @@ function groupItems(items: NewsItem[]): DigestSection[] {
     return (COMPANY_PRIORITY[a] ?? 99) - (COMPANY_PRIORITY[b] ?? 99);
   });
 
+  // Source priority: official blogs first, then official RSS, then releases, then community
+  const SOURCE_PRIORITY: Record<string, number> = {
+    "company-blogs": 1,
+    rss: 2,
+    "github-releases": 3,
+    hackernews: 4,
+    reddit: 5,
+  };
+
   for (const [company, compItems] of sortedCompanies) {
     // Deduplicate releases (only latest per repo)
     const releases = compItems.filter((i) => i.source === "github-releases");
     const nonReleases = compItems.filter((i) => i.source !== "github-releases");
     const dedupedReleases = latestReleasePerRepo(releases);
     const merged = [...nonReleases, ...dedupedReleases]
-      .sort((a, b) => b.publishedAt.getTime() - a.publishedAt.getTime())
+      .sort((a, b) => {
+        // Sort by source priority first (official sources first), then by date
+        const priA = SOURCE_PRIORITY[a.source] ?? 10;
+        const priB = SOURCE_PRIORITY[b.source] ?? 10;
+        if (priA !== priB) return priA - priB;
+        return b.publishedAt.getTime() - a.publishedAt.getTime();
+      })
       .slice(0, 8);
 
     if (merged.length > 0) {
