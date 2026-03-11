@@ -18,7 +18,8 @@ export type SourceType =
   | "hackernews"
   | "reddit"
   | "rss"
-  | "arxiv";
+  | "arxiv"
+  | "company-blogs";
 
 export type ChannelType = "slack" | "discord" | "console";
 

@@ -5,6 +5,7 @@ import { hackernewsCollector } from "./hackernews.js";
 import { redditCollector } from "./reddit.js";
 import { rssCollector } from "./rss.js";
 import { arxivCollector } from "./arxiv.js";
+import { companyBlogsCollector } from "./company-blogs.js";
 
 const collectorMap: Record<SourceType, SourceCollector> = {
   github: githubCollector,
@@ -13,6 +14,7 @@ const collectorMap: Record<SourceType, SourceCollector> = {
   reddit: redditCollector,
   rss: rssCollector,
   arxiv: arxivCollector,
+  "company-blogs": companyBlogsCollector,
 };
 
 export function createCollectors(sources: SourceType[]): SourceCollector[] {

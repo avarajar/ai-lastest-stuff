@@ -25,6 +25,16 @@ function groupItems(items: NewsItem[]): DigestSection[] {
     sections.push({ title: "Top Stories", items: hnRedditItems });
   }
 
+  // Company Announcements: official blog posts from AI companies
+  const companyBlogItems = items
+    .filter((item) => item.source === "company-blogs")
+    .sort((a, b) => b.publishedAt.getTime() - a.publishedAt.getTime())
+    .slice(0, 5);
+
+  if (companyBlogItems.length > 0) {
+    sections.push({ title: "Company Announcements", items: companyBlogItems });
+  }
+
   // Releases: only latest per repo, max 5
   const releaseItems = latestReleasePerRepo(
     items.filter((item) => item.source === "github-releases")

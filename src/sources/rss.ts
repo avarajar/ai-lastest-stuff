@@ -6,6 +6,7 @@ const FEED_URLS = [
   "https://blog.google/technology/ai/rss/",
   "https://deepmind.google/blog/rss.xml",
   "https://huggingface.co/blog/feed.xml",
+  "https://blogs.nvidia.com/feed/",
   "https://www.latent.space/feed",
   // Tech media
   "https://techcrunch.com/category/artificial-intelligence/feed/",

@@ -31,10 +31,11 @@ src/
     index.ts             Factory: maps SourceType -> collector instance.
     github.ts            GitHub search API. Trending AI repos by stars.
     github-releases.ts   Monitors 30+ repos from AI companies for new releases.
-    hackernews.ts        Algolia HN API. AI/LLM keyword search, sorted by points.
+    hackernews.ts        Algolia HN API. Parallel per-term search, merged & deduped.
     reddit.ts            8 subreddits via public JSON API.
-    rss.ts               8 RSS/Atom feeds, parsed with regex (no XML lib).
+    rss.ts               10 RSS/Atom feeds, parsed with regex (no XML lib).
     arxiv.ts             ArXiv Atom API. cs.AI, cs.LG, cs.CL categories.
+    company-blogs.ts     Scrapes Anthropic, Meta AI, Mistral news pages (no RSS).
   channels/
     index.ts             Factory: creates channels from config.
     console.ts           ANSI-colored terminal output. Always active.
@@ -104,10 +105,11 @@ interface Digest {
 | Section | Source |
 |---------|--------|
 | Top Stories | Top 5 HN/Reddit by score |
-| AI Company Releases | github-releases items |
-| New Repos & Tools | github trending items |
-| Research Papers | arxiv items |
-| Community Highlights | Remaining reddit + rss items |
+| Company Announcements | company-blogs (Anthropic, Meta AI, Mistral) |
+| Releases | github-releases items (latest per repo) |
+| Trending Repos | github trending items |
+| Research | arxiv items |
+| News | rss items |
 
 ## Environment Variables
 
@@ -135,7 +137,8 @@ interface Digest {
 
 ## Gotchas
 
-- RSS feeds without public endpoints (Anthropic, Meta, Mistral) are covered by the GitHub releases collector instead.
+- Anthropic, Meta AI, and Mistral don't have RSS feeds. The `company-blogs` collector scrapes their HTML pages directly. Meta AI rejects browser-like Accept headers.
+- HackerNews Algolia API doesn't support OR queries. The collector runs parallel searches per term and merges results.
 - The GitHub search API returns 422 if the query has too many `topic:` filters without auth. Keep queries simple.
 - Reddit rate-limits aggressively. The collector fetches subreddits sequentially with User-Agent set.
 - ArXiv API can be slow and sometimes returns stale results. Timeout is 10s.
