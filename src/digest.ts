@@ -1,6 +1,65 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { NewsItem, Digest, DigestSection } from "./types.js";
 
+// Company priority order — Anthropic first, then major AI labs, then ecosystem
+const COMPANY_PRIORITY: Record<string, number> = {
+  anthropic: 1,
+  openai: 2,
+  google: 3,
+  "google-deepmind": 3,
+  "meta-ai": 4,
+  mistral: 5,
+  nvidia: 6,
+  microsoft: 7,
+};
+
+const COMPANY_DISPLAY_NAMES: Record<string, string> = {
+  anthropic: "Anthropic",
+  openai: "OpenAI",
+  google: "Google",
+  "google-deepmind": "Google DeepMind",
+  "meta-ai": "Meta AI",
+  mistral: "Mistral",
+  nvidia: "NVIDIA",
+  microsoft: "Microsoft",
+};
+
+// Map github-releases repos and RSS feed URLs to company keys
+function detectCompany(item: NewsItem): string | null {
+  const id = item.id.toLowerCase();
+  const title = item.title.toLowerCase();
+  const url = item.url.toLowerCase();
+  const feedUrl = ((item.metadata?.feedUrl as string) || "").toLowerCase();
+  const repo = ((item.metadata?.repo as string) || "").toLowerCase();
+  const company = ((item.metadata?.company as string) || "").toLowerCase();
+
+  // Direct company blog
+  if (company) return company;
+
+  // GitHub releases by org
+  if (repo.startsWith("anthropics/")) return "anthropic";
+  if (repo.startsWith("openai/")) return "openai";
+  if (repo.startsWith("meta-llama/") || repo.startsWith("facebookresearch/")) return "meta-ai";
+  if (repo.startsWith("google-deepmind/") || repo.startsWith("google/generative")) return "google-deepmind";
+  if (repo.startsWith("mistralai/")) return "mistral";
+
+  // RSS by feed URL
+  if (feedUrl.includes("openai.com")) return "openai";
+  if (feedUrl.includes("blog.google") || feedUrl.includes("deepmind.google")) return "google";
+  if (feedUrl.includes("blogs.nvidia.com")) return "nvidia";
+  if (feedUrl.includes("microsoft.com")) return "microsoft";
+
+  // Title/URL heuristics for HN/Reddit items about specific companies
+  if (title.includes("anthropic") || title.includes("claude") || url.includes("anthropic.com")) return "anthropic";
+  if (title.includes("openai") || title.includes("chatgpt") || url.includes("openai.com")) return "openai";
+  if ((title.includes("google") && (title.includes("gemini") || title.includes("ai"))) || title.includes("deepmind")) return "google";
+  if (title.includes("meta") && (title.includes("llama") || title.includes(" ai"))) return "meta-ai";
+  if (title.includes("mistral")) return "mistral";
+  if (title.includes("nvidia")) return "nvidia";
+
+  return null;
+}
+
 function latestReleasePerRepo(items: NewsItem[]): NewsItem[] {
   const seen = new Map<string, NewsItem>();
   for (const item of items) {
@@ -15,36 +74,67 @@ function latestReleasePerRepo(items: NewsItem[]): NewsItem[] {
 function groupItems(items: NewsItem[]): DigestSection[] {
   const sections: DigestSection[] = [];
 
-  // Top Stories: highest scored from HN/Reddit (top 5)
+  // ========================================
+  // 1. COMPANY SECTIONS — grouped by company, sorted by priority
+  // ========================================
+
+  // Collect all company-attributable items
+  const companyItems = new Map<string, NewsItem[]>();
+  const communityPool: NewsItem[] = [];
+
+  // Company blogs + company RSS + company releases
+  const companySourceItems = items.filter(
+    (item) => item.source === "company-blogs" || item.source === "github-releases" || item.source === "rss"
+  );
+
+  for (const item of companySourceItems) {
+    const company = detectCompany(item);
+    if (company && COMPANY_DISPLAY_NAMES[company]) {
+      if (!companyItems.has(company)) companyItems.set(company, []);
+      companyItems.get(company)!.push(item);
+    }
+  }
+
+  // Also check HN/Reddit for company-specific stories (high score only)
   const hnRedditItems = items
     .filter((item) => item.source === "hackernews" || item.source === "reddit")
-    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
-    .slice(0, 5);
+    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
 
-  if (hnRedditItems.length > 0) {
-    sections.push({ title: "Top Stories", items: hnRedditItems });
+  for (const item of hnRedditItems) {
+    const company = detectCompany(item);
+    if (company && COMPANY_DISPLAY_NAMES[company]) {
+      if (!companyItems.has(company)) companyItems.set(company, []);
+      companyItems.get(company)!.push(item);
+    } else {
+      communityPool.push(item);
+    }
   }
 
-  // Company Announcements: official blog posts from AI companies
-  const companyBlogItems = items
-    .filter((item) => item.source === "company-blogs")
-    .sort((a, b) => b.publishedAt.getTime() - a.publishedAt.getTime())
-    .slice(0, 5);
+  // Sort companies by priority, emit sections
+  const sortedCompanies = Array.from(companyItems.entries()).sort(([a], [b]) => {
+    return (COMPANY_PRIORITY[a] ?? 99) - (COMPANY_PRIORITY[b] ?? 99);
+  });
 
-  if (companyBlogItems.length > 0) {
-    sections.push({ title: "Company Announcements", items: companyBlogItems });
+  for (const [company, compItems] of sortedCompanies) {
+    // Deduplicate releases (only latest per repo)
+    const releases = compItems.filter((i) => i.source === "github-releases");
+    const nonReleases = compItems.filter((i) => i.source !== "github-releases");
+    const dedupedReleases = latestReleasePerRepo(releases);
+    const merged = [...nonReleases, ...dedupedReleases]
+      .sort((a, b) => b.publishedAt.getTime() - a.publishedAt.getTime())
+      .slice(0, 8);
+
+    if (merged.length > 0) {
+      sections.push({
+        title: COMPANY_DISPLAY_NAMES[company],
+        items: merged,
+      });
+    }
   }
 
-  // Releases: only latest per repo, max 5
-  const releaseItems = latestReleasePerRepo(
-    items.filter((item) => item.source === "github-releases")
-  ).slice(0, 5);
-
-  if (releaseItems.length > 0) {
-    sections.push({ title: "Releases", items: releaseItems });
-  }
-
-  // Trending Repos: top 5 by stars
+  // ========================================
+  // 2. TRENDING REPOS
+  // ========================================
   const githubItems = items
     .filter((item) => item.source === "github")
     .slice(0, 5);
@@ -53,7 +143,9 @@ function groupItems(items: NewsItem[]): DigestSection[] {
     sections.push({ title: "Trending Repos", items: githubItems });
   }
 
-  // Papers: top 5
+  // ========================================
+  // 3. RESEARCH
+  // ========================================
   const arxivItems = items
     .filter((item) => item.source === "arxiv")
     .slice(0, 5);
@@ -62,31 +154,43 @@ function groupItems(items: NewsItem[]): DigestSection[] {
     sections.push({ title: "Research", items: arxivItems });
   }
 
-  // News: RSS items, top 5
-  const topStoryIds = new Set(hnRedditItems.map((item) => item.id));
-  const newsItems = items
-    .filter((item) => item.source === "rss")
+  // ========================================
+  // 4. COMMUNITY — remaining HN/Reddit + non-company RSS
+  // ========================================
+  const usedRssIds = new Set(
+    sortedCompanies.flatMap(([, items]) => items.map((i) => i.id))
+  );
+
+  const communityRss = items
+    .filter((item) => item.source === "rss" && !usedRssIds.has(item.id))
     .slice(0, 5);
 
-  if (newsItems.length > 0) {
-    sections.push({ title: "News", items: newsItems });
+  const communityFinal = [
+    ...communityPool.slice(0, 5),
+    ...communityRss,
+  ].slice(0, 8);
+
+  if (communityFinal.length > 0) {
+    sections.push({ title: "Community", items: communityFinal });
   }
 
   return sections;
 }
 
 function buildPrompt(sections: DigestSection[]): string {
-  let prompt = `You are writing a short daily AI newsletter brief. Below are today's items grouped by category.
+  let prompt = `You are writing a daily AI industry newsletter. Below are today's items grouped by company and category.
 
-Write a single concise newsletter in plain text. Rules:
-- Start with a 1-2 sentence headline summary of the most important thing today
-- Then write one short paragraph per section (2-3 sentences max each)
-- Mention specific names, versions, and numbers when relevant
-- Keep the TOTAL response under 300 words
-- Do NOT use markdown, bullet points, or lists — write in prose paragraphs
+Write a structured newsletter in plain text. Rules:
+- Start with a 1-2 sentence lead highlighting the BIGGEST news today
+- Then write one paragraph per section, using the EXACT section name as header
+- Company sections go first (Anthropic, OpenAI, Google, etc.) — for each, summarize their announcements and releases
+- Mention specific product names, versions, and numbers
+- Keep the TOTAL response under 400 words
+- Do NOT use markdown formatting — use plain text only
 - Do NOT include links or URLs
-- Separate sections with a blank line and the section name in caps on its own line
+- Section headers should be the company/section name in ALL CAPS on its own line, preceded by a blank line
 - Write in a casual but informative tone, like a smart colleague giving you a quick rundown
+- If a company section has both blog posts AND releases, mention both
 
 Here are today's items:
 
@@ -95,7 +199,7 @@ Here are today's items:
   for (const section of sections) {
     prompt += `## ${section.title}\n`;
     for (const item of section.items) {
-      prompt += `- ${item.title}`;
+      prompt += `- [${item.source}] ${item.title}`;
       if (item.description) {
         const desc = item.description.slice(0, 200);
         prompt += `: ${desc}`;

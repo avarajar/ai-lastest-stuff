@@ -51,8 +51,8 @@ async function main(): Promise<void> {
   const db = new Database(config.dbPath);
 
   try {
-    // Step 1: Calculate time window (last 24 hours)
-    const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    // Step 1: Calculate time window (last 3 days to cover gaps between cron runs)
+    const since = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
     console.log(`Collecting news since: ${since.toISOString()}`);
 
     // Step 2: Create collectors and collect from all sources in parallel

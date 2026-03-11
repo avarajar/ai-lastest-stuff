@@ -15,21 +15,15 @@ export const consoleChannel: Channel = {
 
     if (digest.summary) {
       console.log(`\n${digest.summary}`);
-    } else {
-      for (const section of digest.sections) {
-        console.log(`\n${BOLD}${section.title}${RESET}`);
-        for (const item of section.items) {
-          console.log(`  ${item.title}`);
-          console.log(`  ${DIM}${item.url}${RESET}`);
-        }
-      }
     }
 
-    // Top links
-    const topItems = digest.sections.flatMap((s) => s.items).slice(0, 8);
-    console.log(`\n${DIM}Top links:${RESET}`);
-    for (const item of topItems) {
-      console.log(`  ${DIM}${item.url}${RESET}`);
+    // Always show links organized by section
+    for (const section of digest.sections) {
+      console.log(`\n${BOLD}--- ${section.title} ---${RESET}`);
+      for (const item of section.items) {
+        console.log(`  ${item.title}`);
+        console.log(`  ${DIM}${item.url}${RESET}`);
+      }
     }
 
     console.log("");
