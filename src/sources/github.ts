@@ -94,7 +94,9 @@ export const githubCollector: SourceCollector = {
 
       return allRepos.slice(0, 15).map((repo): NewsItem => ({
         id: `github-${repo.full_name}`,
-        title: repo.full_name,
+        title: repo.description
+          ? `${repo.full_name} — ${repo.description}`
+          : repo.full_name,
         url: repo.html_url,
         source: "github",
         description: repo.description ?? undefined,

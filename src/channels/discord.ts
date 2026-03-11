@@ -52,7 +52,7 @@ function buildMessages(digest: Digest): string[] {
 
     for (const item of section.items) {
       const title = decodeEntities(item.title);
-      full += `> ${title}\n> <${item.url}>\n`;
+      full += `> [${title}](${item.url})\n`;
     }
   }
 
