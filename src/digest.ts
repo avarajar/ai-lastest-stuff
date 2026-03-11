@@ -115,25 +115,32 @@ function groupItems(items: NewsItem[]): DigestSection[] {
   return sections;
 }
 
+// Only company sections get AI summaries — Trending Repos is just links
+const SUMMARY_SECTIONS = new Set(Object.values(COMPANY_DISPLAY_NAMES));
+
 function buildPrompt(sections: DigestSection[]): string {
+  const companySections = sections.filter((s) => SUMMARY_SECTIONS.has(s.title));
+
   let prompt = `You are writing a daily AI industry newsletter. Below are today's items grouped by company.
 
-For EACH company section, write a short summary paragraph (2-4 sentences). Rules:
-- Write one paragraph per company using the EXACT company name as header in ALL CAPS
+Write ONLY the sections listed below. Rules:
+- Start with a 1 sentence lead highlighting the biggest news today
+- Then write EXACTLY one paragraph per company listed below, using the EXACT company name as header in ALL CAPS
+- Do NOT add any other sections, headers, or categories beyond what is listed
 - Summarize their most important announcements, products, and releases
 - Mention specific product names, versions, and numbers
 - Keep each paragraph under 80 words
 - Do NOT use markdown — plain text only
 - Do NOT include links or URLs
-- Casual but informative tone — like a smart colleague giving you the rundown
-- For the Community section, highlight the most interesting non-company stories
-- Start with a 1 sentence overall lead before the first company section
+- Casual but informative tone
+
+Sections to write: ${companySections.map((s) => s.title.toUpperCase()).join(", ")}
 
 Here are today's items:
 
 `;
 
-  for (const section of sections) {
+  for (const section of companySections) {
     prompt += `## ${section.title}\n`;
     for (const item of section.items) {
       prompt += `- [${item.source}] ${item.title}`;
