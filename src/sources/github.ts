@@ -15,16 +15,48 @@ interface GitHubSearchResponse {
   items?: GitHubRepo[];
 }
 
+// Searches to find actually trending repos — recently created with fast growth
+const SEARCHES = [
+  // Anthropic/Claude ecosystem — highest priority
+  { query: "claude anthropic", label: "claude" },
+  { query: "claude-code", label: "claude" },
+  // Other AI trending
+  { query: "llm agent", label: "ai" },
+  { query: "ai tool", label: "ai" },
+  { query: "gpt openai", label: "ai" },
+  { query: "machine learning", label: "ai" },
+];
+
+async function searchGitHub(
+  query: string,
+  sinceDate: string,
+  headers: Record<string, string>
+): Promise<GitHubRepo[]> {
+  // Search for repos created recently with some traction
+  const q = encodeURIComponent(
+    `${query} created:>${sinceDate} stars:>5`
+  );
+  const url = `https://api.github.com/search/repositories?q=${q}&sort=stars&order=desc&per_page=10`;
+
+  const response = await fetch(url, {
+    headers,
+    signal: AbortSignal.timeout(10000),
+  });
+
+  if (!response.ok) return [];
+
+  const data = (await response.json()) as GitHubSearchResponse;
+  return data.items ?? [];
+}
+
 export const githubCollector: SourceCollector = {
   name: "github",
 
   async collect(since: Date): Promise<NewsItem[]> {
     try {
-      const sinceDate = since.toISOString().split("T")[0];
-      const query = encodeURIComponent(
-        `ai llm machine-learning pushed:>${sinceDate} stars:>10`
-      );
-      const url = `https://api.github.com/search/repositories?q=${query}&sort=stars&order=desc&per_page=15`;
+      // Look for repos created in the last 2 weeks
+      const twoWeeksAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+      const sinceDate = twoWeeksAgo.toISOString().split("T")[0];
 
       const headers: Record<string, string> = {
         Accept: "application/vnd.github+json",
@@ -36,21 +68,31 @@ export const githubCollector: SourceCollector = {
         headers["Authorization"] = `Bearer ${token}`;
       }
 
-      const response = await fetch(url, {
-        headers,
-        signal: AbortSignal.timeout(10000),
-      });
+      // Run searches sequentially to avoid rate limits
+      const seen = new Set<string>();
+      const allRepos: Array<GitHubRepo & { searchLabel: string }> = [];
 
-      if (!response.ok) {
-        console.error(`GitHub API error: ${response.status} ${response.statusText}`);
-        return [];
+      for (const search of SEARCHES) {
+        const repos = await searchGitHub(search.query, sinceDate, headers);
+        for (const repo of repos) {
+          if (!seen.has(repo.full_name)) {
+            seen.add(repo.full_name);
+            allRepos.push({ ...repo, searchLabel: search.label });
+          }
+        }
       }
 
-      const data = (await response.json()) as GitHubSearchResponse;
-      const repos = data.items ?? [];
       const now = new Date();
 
-      return repos.slice(0, 15).map((repo): NewsItem => ({
+      // Sort: claude/anthropic repos first, then by stars
+      allRepos.sort((a, b) => {
+        const aIsClaude = a.searchLabel === "claude" ? 1 : 0;
+        const bIsClaude = b.searchLabel === "claude" ? 1 : 0;
+        if (aIsClaude !== bIsClaude) return bIsClaude - aIsClaude;
+        return b.stargazers_count - a.stargazers_count;
+      });
+
+      return allRepos.slice(0, 15).map((repo): NewsItem => ({
         id: `github-${repo.full_name}`,
         title: repo.full_name,
         url: repo.html_url,
