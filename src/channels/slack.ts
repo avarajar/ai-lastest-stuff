@@ -1,4 +1,21 @@
-import type { Channel, Digest, DigestSection } from "../types.js";
+import type { Channel, Digest } from "../types.js";
+
+function decodeEntities(str: string): string {
+  return str
+    .replace(/&#0?39;/g, "'")
+    .replace(/&#x27;/g, "'")
+    .replace(/&#x2F;/g, "/")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#8217;/g, "\u2019")
+    .replace(/&#8216;/g, "\u2018")
+    .replace(/&#8220;/g, "\u201C")
+    .replace(/&#8221;/g, "\u201D")
+    .replace(/&#8211;/g, "\u2013")
+    .replace(/&#8212;/g, "\u2014");
+}
 
 interface SlackBlock {
   type: string;
@@ -17,12 +34,12 @@ function buildBlocks(digest: Digest): SlackBlock[] {
     type: "header",
     text: {
       type: "plain_text",
-      text: `AI News Digest - ${digest.date}`,
+      text: `AI Daily Brief \u2014 ${digest.date}`,
       emoji: true,
     },
   });
 
-  // Summary
+  // Lead summary
   if (digest.summary) {
     blocks.push({
       type: "section",
@@ -33,24 +50,27 @@ function buildBlocks(digest: Digest): SlackBlock[] {
     });
   }
 
-  // Each section
+  // Each section: summary + links
   for (const section of digest.sections) {
     blocks.push({ type: "divider" });
 
-    const itemLines = section.items.map((item) => {
-      const score = item.score != null ? ` (${item.score})` : "";
-      return `*<${item.url}|${item.title}>*${score}`;
-    });
+    let text = `*\u2014 ${section.title} \u2014*\n`;
 
-    const sectionText = section.summary
-      ? `${section.summary}\n\n${itemLines.join("\n")}`
-      : itemLines.join("\n");
+    if (section.summary) {
+      text += `${section.summary}\n\n`;
+    }
 
+    for (const item of section.items) {
+      const title = decodeEntities(item.title);
+      text += `\u2022 <${item.url}|${title}>\n`;
+    }
+
+    // Slack section text limit is 3000 chars
     blocks.push({
       type: "section",
       text: {
         type: "mrkdwn",
-        text: `*${section.title}*\n\n${sectionText}`,
+        text: text.slice(0, 3000),
       },
     });
   }
@@ -65,9 +85,8 @@ export function createSlackChannel(webhookUrl: string): Channel {
     async post(digest: Digest): Promise<void> {
       const blocks = buildBlocks(digest);
 
-      // Slack has a 50-block limit; truncate if needed
       const payload = {
-        text: `AI News Digest - ${digest.date}`,
+        text: `AI Daily Brief \u2014 ${digest.date}`,
         blocks: blocks.slice(0, 50),
       };
 

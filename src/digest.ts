@@ -175,22 +175,22 @@ const SUMMARY_SECTIONS = new Set([
 function buildPrompt(sections: DigestSection[]): string {
   const companySections = sections.filter((s) => SUMMARY_SECTIONS.has(s.title));
 
-  let prompt = `You are writing a daily AI developer newsletter focused on tools, products, and technical updates.
+  let prompt = `Eres un redactor de un newsletter diario de AI para desarrolladores, enfocado en herramientas, productos y actualizaciones técnicas.
 
-Write ONLY the sections listed below. Rules:
-- Start with a 1 sentence lead highlighting the biggest developer-relevant news today
-- Then write EXACTLY one paragraph per section listed below, using the EXACT section name as header in ALL CAPS
-- Do NOT add any other sections, headers, or categories beyond what is listed
-- Focus on product launches, features, developer tools, APIs, SDKs, and technical updates
-- Skip investment news, politics, hiring, and office announcements
-- For "CLAUDE CODE": focus on CLI features, skills, integrations, dev workflows, code review, and agent capabilities
-- Mention specific product names, versions, and numbers
-- Keep each paragraph under 80 words
-- Do NOT use markdown — plain text only
-- Do NOT include links or URLs
-- Casual but informative tone — like a dev colleague giving you the rundown
+Escribe TODO en ESPAÑOL. Escribe SOLO las secciones listadas abajo. Reglas:
+- Empieza con 1 oración de lead destacando la noticia más importante del día para devs
+- Luego escribe EXACTAMENTE un párrafo por sección, usando el NOMBRE EXACTO de la sección como header en MAYÚSCULAS
+- NO agregues secciones, headers o categorías adicionales a las listadas
+- Enfócate en lanzamientos de producto, features, herramientas dev, APIs, SDKs y actualizaciones técnicas
+- Ignora noticias de inversión, política, contrataciones y anuncios de oficinas
+- Para "CLAUDE CODE": enfócate en features del CLI, skills, integraciones, workflows dev, code review y capacidades de agentes
+- Menciona nombres de productos, versiones y números específicos
+- Máximo 80 palabras por párrafo
+- NO uses markdown — solo texto plano
+- NO incluyas links ni URLs
+- Tono casual pero informativo — como un colega dev contándote el resumen
 
-Sections to write: ${companySections.map((s) => s.title.toUpperCase()).join(", ")}
+Secciones a escribir: ${companySections.map((s) => s.title.toUpperCase()).join(", ")}
 
 Here are today's items:
 
