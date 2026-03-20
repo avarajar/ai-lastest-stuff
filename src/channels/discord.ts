@@ -1,5 +1,14 @@
 import type { Channel, Digest } from "../types.js";
 
+const SECTION_EMOJI: Record<string, string> = {
+  Anthropic: "\uD83D\uDC9C",
+  "Claude Code": "\u2328\uFE0F",
+  OpenAI: "\uD83D\uDC9A",
+  Google: "\uD83D\uDD35",
+  Microsoft: "\uD83D\uDFE6",
+  "Trending Repos": "\uD83D\uDD25",
+};
+
 function decodeEntities(str: string): string {
   return str
     .replace(/&#0?39;/g, "'")
@@ -34,25 +43,41 @@ function splitText(text: string, limit: number): string[] {
 }
 
 function buildMessages(digest: Digest): string[] {
-  // Build one big text, then split for Discord limits
-  let full = `**AI Daily Brief \u2014 ${digest.date}**\n`;
+  let full = `> **\uD83E\uDDE0 AI Daily Brief**\n> _${digest.date}_\n`;
 
-  // Lead summary
   if (digest.summary) {
     full += `\n${digest.summary}\n`;
   }
 
-  // Each section: summary paragraph + links underneath
   for (const section of digest.sections) {
-    full += `\n**\u2014 ${section.title} \u2014**\n`;
+    const emoji = SECTION_EMOJI[section.title] || "\u25AA\uFE0F";
+    const isTrending = section.title === "Trending Repos";
+
+    full += `\n**${emoji} ${section.title}**\n`;
 
     if (section.summary) {
       full += `${section.summary}\n`;
     }
 
-    for (const item of section.items) {
-      const title = decodeEntities(item.title);
-      full += `> [${title}](${item.url})\n`;
+    if (isTrending) {
+      for (const item of section.items) {
+        const title = decodeEntities(item.title);
+        const dashIdx = title.indexOf(" \u2014 ");
+        if (dashIdx > 0) {
+          const repo = title.slice(0, dashIdx);
+          const desc = title.slice(dashIdx + 3);
+          full += `[${repo}](${item.url}) \u2014 ${desc}\n`;
+        } else {
+          full += `[${title}](${item.url})\n`;
+        }
+      }
+    } else {
+      const links = section.items.map((item) => {
+        const title = decodeEntities(item.title);
+        const short = title.replace(/^[a-zA-Z0-9_-]+\/[a-zA-Z0-9_.-]+ /, "");
+        return `[${short}](${item.url})`;
+      });
+      full += `\u2192 ${links.join(" \u00B7 ")}\n`;
     }
   }
 
