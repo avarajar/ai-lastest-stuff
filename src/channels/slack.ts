@@ -73,7 +73,7 @@ function buildText(digest: Digest): string {
   return text;
 }
 
-export function createSlackChannel(webhookUrl: string): Channel {
+export function createSlackChannel(webhookUrl: string, channel?: string): Channel {
   return {
     name: "slack",
 
@@ -81,23 +81,26 @@ export function createSlackChannel(webhookUrl: string): Channel {
       const text = buildText(digest);
 
       // Slack webhook with mrkdwn — single payload, no blocks needed
-      const payload = {
-        text: `AI Daily Brief \u2014 ${digest.date}`,
-        blocks: [
-          {
-            type: "section",
-            text: { type: "mrkdwn", text: text.slice(0, 3000) },
-          },
-        ],
-      };
+      const blocks: Array<{ type: string; text: { type: string; text: string } }> = [
+        {
+          type: "section",
+          text: { type: "mrkdwn", text: text.slice(0, 3000) },
+        },
+      ];
 
       // If text exceeds 3000, send overflow as second block
       if (text.length > 3000) {
-        payload.blocks.push({
+        blocks.push({
           type: "section",
           text: { type: "mrkdwn", text: text.slice(3000, 6000) },
         });
       }
+
+      const payload: Record<string, unknown> = {
+        ...(channel && { channel }),
+        text: `AI Daily Brief \u2014 ${digest.date}`,
+        blocks,
+      };
 
       try {
         const response = await fetch(webhookUrl, {

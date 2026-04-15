@@ -10,6 +10,7 @@ export function loadConfig(): Config {
   return {
     anthropicApiKey: process.env.ANTHROPIC_API_KEY,
     slackWebhookUrl: process.env.SLACK_WEBHOOK_URL,
+    slackChannel: process.env.SLACK_CHANNEL,
     discordWebhookUrl: process.env.DISCORD_WEBHOOK_URL,
     githubToken: process.env.GITHUB_TOKEN,
     dbPath: process.env.DB_PATH || "./ai-news.db",
