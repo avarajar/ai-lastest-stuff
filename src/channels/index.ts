@@ -11,7 +11,7 @@ export function createChannels(config: Config): Channel[] {
 
   // Add Slack channel if webhook is configured
   if (config.channels.includes("slack") && config.slackWebhookUrl) {
-    channels.push(createSlackChannel(config.slackWebhookUrl));
+    channels.push(createSlackChannel(config.slackWebhookUrl, config.slackChannel));
   }
 
   // Add Discord channel if webhook is configured

@@ -1,12 +1,12 @@
 import type { Channel, Digest } from "../types.js";
 
 const SECTION_EMOJI: Record<string, string> = {
-  Anthropic: "\uD83D\uDC9C",      // 💜
-  "Claude Code": "\u2328\uFE0F",   // ⌨️
-  OpenAI: "\uD83D\uDC9A",          // 💚
-  Google: "\uD83D\uDD35",          // 🔵
-  Microsoft: "\uD83D\uDFE6",       // 🟦
-  "Trending Repos": "\uD83D\uDD25", // 🔥
+  Anthropic: "💜",      // 💜
+  "Claude Code": "⌨️",   // ⌨️
+  OpenAI: "💚",          // 💚
+  Google: "🔵",          // 🔵
+  Microsoft: "🟦",       // 🟦
+  "Trending Repos": "🔥", // 🔥
 };
 
 function decodeEntities(str: string): string {
@@ -18,24 +18,24 @@ function decodeEntities(str: string): string {
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
-    .replace(/&#8217;/g, "\u2019")
-    .replace(/&#8216;/g, "\u2018")
-    .replace(/&#8220;/g, "\u201C")
-    .replace(/&#8221;/g, "\u201D")
-    .replace(/&#8211;/g, "\u2013")
-    .replace(/&#8212;/g, "\u2014");
+    .replace(/&#8217;/g, "’")
+    .replace(/&#8216;/g, "‘")
+    .replace(/&#8220;/g, "“")
+    .replace(/&#8221;/g, "”")
+    .replace(/&#8211;/g, "–")
+    .replace(/&#8212;/g, "—");
 }
 
 function buildText(digest: Digest): string {
   const date = digest.date;
-  let text = `> *\uD83E\uDDE0 AI Daily Brief*\n> _${date}_\n\n`;
+  let text = `> *🧠 AI Daily Brief*\n> _${date}_\n\n`;
 
   if (digest.summary) {
     text += `${digest.summary}\n`;
   }
 
   for (const section of digest.sections) {
-    const emoji = SECTION_EMOJI[section.title] || "\u25AA\uFE0F";
+    const emoji = SECTION_EMOJI[section.title] || "▪️";
     const isTrending = section.title === "Trending Repos";
 
     text += `\n*${emoji} ${section.title}*\n`;
@@ -49,11 +49,11 @@ function buildText(digest: Digest): string {
       for (const item of section.items) {
         const title = decodeEntities(item.title);
         // Extract repo name and description from "owner/repo — description"
-        const dashIdx = title.indexOf(" \u2014 ");
+        const dashIdx = title.indexOf(" — ");
         if (dashIdx > 0) {
           const repo = title.slice(0, dashIdx);
           const desc = title.slice(dashIdx + 3);
-          text += `<${item.url}|${repo}> \u2014 ${desc}\n`;
+          text += `<${item.url}|${repo}> — ${desc}\n`;
         } else {
           text += `<${item.url}|${title}>\n`;
         }
@@ -66,14 +66,14 @@ function buildText(digest: Digest): string {
         const short = title.replace(/^[a-zA-Z0-9_-]+\/[a-zA-Z0-9_.-]+ /, "");
         return `<${item.url}|${short}>`;
       });
-      text += `\u2192 ${links.join(" \u00B7 ")}\n`;
+      text += `→ ${links.join(" · ")}\n`;
     }
   }
 
   return text;
 }
 
-export function createSlackChannel(webhookUrl: string): Channel {
+export function createSlackChannel(webhookUrl: string, channel?: string): Channel {
   return {
     name: "slack",
 
@@ -81,8 +81,9 @@ export function createSlackChannel(webhookUrl: string): Channel {
       const text = buildText(digest);
 
       // Slack webhook with mrkdwn — single payload, no blocks needed
-      const payload = {
-        text: `AI Daily Brief \u2014 ${digest.date}`,
+      const payload: Record<string, unknown> = {
+        ...(channel ? { channel } : {}),
+        text: `AI Daily Brief — ${digest.date}`,
         blocks: [
           {
             type: "section",
@@ -93,7 +94,7 @@ export function createSlackChannel(webhookUrl: string): Channel {
 
       // If text exceeds 3000, send overflow as second block
       if (text.length > 3000) {
-        payload.blocks.push({
+        (payload.blocks as unknown[]).push({
           type: "section",
           text: { type: "mrkdwn", text: text.slice(3000, 6000) },
         });

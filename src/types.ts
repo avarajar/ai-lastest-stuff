@@ -49,6 +49,7 @@ export interface Channel {
 export interface Config {
   anthropicApiKey?: string;
   slackWebhookUrl?: string;
+  slackChannel?: string;
   discordWebhookUrl?: string;
   githubToken?: string;
   dbPath: string;
