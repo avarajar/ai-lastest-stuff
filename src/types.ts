@@ -19,7 +19,8 @@ export type SourceType =
   | "reddit"
   | "rss"
   | "arxiv"
-  | "company-blogs";
+  | "company-blogs"
+  | "threads";
 
 export type ChannelType = "slack" | "discord" | "console";
 
