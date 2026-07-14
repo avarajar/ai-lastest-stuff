@@ -7,6 +7,9 @@ const SECTION_EMOJI: Record<string, string> = {
   Google: "\uD83D\uDD35",          // 🔵
   Microsoft: "\uD83D\uDFE6",       // 🟦
   "Trending Repos": "\uD83D\uDD25", // 🔥
+  "Top Stories": "\uD83D\uDCA1", // 💡
+  Research: "\uD83D\uDD2C",        // 🔬
+  News: "\uD83D\uDCF0",            // 📰
 };
 
 function decodeEntities(str: string): string {
@@ -37,6 +40,7 @@ function buildText(digest: Digest): string {
   for (const section of digest.sections) {
     const emoji = SECTION_EMOJI[section.title] || "\u25AA\uFE0F";
     const isTrending = section.title === "Trending Repos";
+    const isListSection = section.title === "Research" || section.title === "News" || section.title === "Top Stories";
 
     text += `\n*${emoji} ${section.title}*\n`;
 
@@ -57,6 +61,13 @@ function buildText(digest: Digest): string {
         } else {
           text += `<${item.url}|${title}>\n`;
         }
+      }
+    } else if (isListSection) {
+      // Research, News, Top Stories: one link per line
+      for (const item of section.items) {
+        const title = decodeEntities(item.title);
+        const score = item.score ? ` (${item.score} pts)` : "";
+        text += `\u2022 <${item.url}|${title}>${score}\n`;
       }
     } else {
       // Company sections: links inline with →

@@ -101,6 +101,9 @@ function groupItems(items: NewsItem[]): DigestSection[] {
   const sections: DigestSection[] = [];
   const companyItems = new Map<string, NewsItem[]>();
 
+  // Track items attributed to companies so unattributed RSS goes to News section
+  const attributedIds = new Set<string>();
+
   // Attribute items to companies
   for (const item of items) {
     if (item.source === "github" || item.source === "arxiv") continue;
@@ -109,6 +112,7 @@ function groupItems(items: NewsItem[]): DigestSection[] {
     if (company && COMPANY_DISPLAY_NAMES[company]) {
       if (!companyItems.has(company)) companyItems.set(company, []);
       companyItems.get(company)!.push(item);
+      attributedIds.add(item.id);
     }
   }
 
@@ -161,6 +165,36 @@ function groupItems(items: NewsItem[]): DigestSection[] {
 
   if (githubItems.length > 0) {
     sections.push({ title: "Trending Repos", items: githubItems });
+  }
+
+  // Top Stories: top HN/Reddit items by score not already attributed to a company
+  const topStories = items
+    .filter((i) => (i.source === "hackernews" || i.source === "reddit") && !attributedIds.has(i.id))
+    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
+    .slice(0, 5);
+
+  if (topStories.length > 0) {
+    sections.push({ title: "Top Stories", items: topStories });
+  }
+
+  // Research: ArXiv items
+  const researchItems = items
+    .filter((i) => i.source === "arxiv")
+    .sort((a, b) => b.publishedAt.getTime() - a.publishedAt.getTime())
+    .slice(0, 6);
+
+  if (researchItems.length > 0) {
+    sections.push({ title: "Research", items: researchItems });
+  }
+
+  // News: RSS items not attributed to any company
+  const newsItems = items
+    .filter((i) => i.source === "rss" && !attributedIds.has(i.id))
+    .sort((a, b) => b.publishedAt.getTime() - a.publishedAt.getTime())
+    .slice(0, 6);
+
+  if (newsItems.length > 0) {
+    sections.push({ title: "News", items: newsItems });
   }
 
   return sections;
